@@ -20,9 +20,19 @@ class Agent():
     self.discount = args.discount
 
     self.online_net = DQN(args, self.action_space).to(device=args.device)
+
+    # load model (raise exception on incorrect model paths)
     if args.model and os.path.isfile(args.model):
       # Always load tensors onto CPU by default, will shift to GPU if necessary
       self.online_net.load_state_dict(torch.load(args.model, map_location='cpu'))
+      print("Loading pretrained model: " + args.model)
+
+    if args.model and not os.path.isfile(args.model):
+      raise FileNotFoundError(args.model)
+
+    else:
+      print("Training from scratch (no pretrained model provided)")
+
     self.online_net.train()
 
     self.target_net = DQN(args, self.action_space).to(device=args.device)
@@ -40,7 +50,8 @@ class Agent():
   # Acts based on single state (no batch)
   def act(self, state):
     with torch.no_grad():
-      return (self.online_net(state.unsqueeze(0)) * self.support).sum(2).argmax(1).item()
+      network_output = self.online_net(state.unsqueeze(0))
+      return (network_output * self.support).sum(2).argmax(1).item()
 
   # Acts with an ε-greedy policy (used for evaluation only)
   def act_e_greedy(self, state, epsilon=0.001):  # High ε can reduce evaluation scores drastically

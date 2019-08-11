@@ -11,11 +11,12 @@ from env import Env
 from memory import ReplayMemory
 from test import test
 from tqdm import tqdm
+import logging
 
 
 # Note that hyperparameters may originally be reported in ATARI game frames instead of agent steps
 parser = argparse.ArgumentParser(description='Rainbow')
-parser.add_argument('--id', type=str, default='default', help='Experiment ID')
+parser.add_argument('--id', type=str, help='Experiment ID')
 parser.add_argument('--seed', type=int, default=123, help='Random seed')
 parser.add_argument('--disable-cuda', action='store_true', help='Disable CUDA')
 parser.add_argument('--game', type=str, default='space_invaders', choices=atari_py.list_games(), help='ATARI game')
@@ -47,6 +48,7 @@ parser.add_argument('--evaluation-episodes', type=int, default=10, metavar='N', 
 parser.add_argument('--evaluation-size', type=int, default=500, metavar='N', help='Number of transitions to use for validating Q')
 parser.add_argument('--render', action='store_true', help='Display screen (testing only)')
 parser.add_argument('--enable-cudnn', action='store_true', help='Enable cuDNN (faster but nondeterministic)')
+parser.add_argument('--log-level', type=str, default="INFO", help='Set logging level to one of: CRITICAL, ERROR, WARNING, INFO, DEBUG')
 
 
 # Setup
@@ -54,9 +56,29 @@ args = parser.parse_args()
 print(' ' * 26 + 'Options')
 for k, v in vars(args).items():
   print(' ' * 26 + k + ': ' + str(v))
-results_dir = os.path.join('results', args.id)
+
+# set the directory that logs, models, and statistics will be saved
+if args.id is None:
+  results_dir = os.path.join('results', datetime.now().strftime("%Y-%m-%dT%H:%M:%S"))
+if args.id is not None:
+  results_dir = os.path.join('results', args.id)
+
 if not os.path.exists(results_dir):
   os.makedirs(results_dir)
+
+# config logging
+numeric_log_level = getattr(logging, args.log_level.upper(), None)
+if not isinstance(numeric_log_level, int):
+  raise ValueError('Invalid log level: %s' % args.log_level)
+logging.basicConfig(
+  level=numeric_log_level,
+  filename=os.path.join(results_dir, "logs.log"),
+  filemode='w',
+  format='%(levelname)s - File \"%(filename)s\", Function \"%(funcName)s\", line %(lineno)d (%(asctime)s):\n'
+         '  %(message)s',
+  datefmt='%Y/%m/%d %I:%M:%S %p'
+)
+
 metrics = {'steps': [], 'rewards': [], 'Qs': [], 'best_avg_reward': -float('inf')}
 np.random.seed(args.seed)
 torch.manual_seed(np.random.randint(1, 10000))
@@ -70,7 +92,7 @@ else:
 
 # Simple ISO 8601 timestamped logger
 def log(s):
-  print('[' + str(datetime.now().strftime('%Y-%m-%dT%H:%M:%S')) + '] ' + s)
+  logging.info('[' + str(datetime.now().strftime('%Y-%m-%dT%H:%M:%S')) + '] ' + s)
 
 
 # Environment
